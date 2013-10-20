@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>My Wallet</title>
+
+	<!-- Loading Bootstrap -->
+    <link href="bootstrap/css/bootstrap.css" rel="stylesheet">
+    
+
+    <!-- Loading Flat UI -->
+    <link href="css/flat-ui.css" rel="stylesheet">
+
+    <style>
+    html, body {
+    	margin: 0;
+    	padding: 0;
+    }
+    
+	.title {
+		margin-bottom: 20px;
+		color: #2c3e50;
+		text-align: center;
+		font-weight: 100;
+	}
+	th, td {
+		text-align: center !important;
+	}
+	.debit {
+		color: #c0392b !important;
+	}
+	.credit {
+		color: #2cc36b !important;
+	}
+	.balance {
+		color: #2980b9 !important;
+	}
+	
+	th, td {
+		padding: 8px !important;
+		vertical-align: middle !important;
+	}
+	:focus {
+		outline:none;
+	}
+	.add-row td {
+		border-bottom: 2px #eef0f0 dashed;
+	}
+	.default[contenteditable] {
+		color: #bdc3c7;
+	}
+	.btn-delete {
+		color: #da4f49;
+	}
+	.btn-delete:hover {
+		color: #e74c3c;
+	}
+    </style>
+</head>
+<body>
+	<div class='ontainer'>
+		<h2 class='title'>My Wallet</h2>
+		<table class="table js-wallet">
+			<tr>
+				<th rowspan="2" style="width: 250px;">Date</th>
+				<th rowspan="2">Particulars</th>
+				<th colspan="6">Denominations</th>
+				<th rowspan="2" style="width: 200px;">Balance</th>
+				<th rowspan="2" style="width:40px"></th>
+			</tr>
+			<tr>
+				<th style="width: 70px;">₹10</th>
+				<th style="width: 70px;">₹20</th>
+				<th style="width: 70px;">₹50</th>
+				<th style="width: 70px;">₹100</th>
+				<th style="width: 70px;">₹500</th>
+				<th style="width: 70px;">₹1000</th>
+			</tr>
+			<tr class="add-row js-add-row">
+				<td><span class="fui-plus"></span></td>
+				<td contenteditable="true" class="default js-particulars">Enter Particulars</td>
+				<td contenteditable="true" class="default js-denomination-10">0</td>
+				<td contenteditable="true" class="default js-denomination-20">0</td>
+				<td contenteditable="true" class="default js-denomination-50">0</td>
+				<td contenteditable="true" class="default js-denomination-100">0</td>
+				<td contenteditable="true" class="default js-denomination-500">0</td>
+				<td contenteditable="true" class="default js-denomination-1000">0</td>
+				<td><a href="#" class="btn btn-inverse js-btn-add">Add</a></td>
+				<td></td>
+			</tr>
+	</div>
+	<script src="js/jquery-1.8.3.min.js"></script>
+	<script src="js/moment.min.js"></script>
+	<script>
+		function WalletEntry(particulars, denominations) {
+			this.timestamp = +new Date;
+			this.particulars = particulars;
+			this.denominations = denominations;
+			
+			if (this.amount() !== 0) {
+				this.index = WalletEntry.entries.push(this) - 1;
+				localStorage.wallet = JSON.stringify(WalletEntry.entries);
+			}
+			else return;
+		}
+		
+		WalletEntry.entries = JSON.parse(localStorage.wallet || '[]');
+		
+		WalletEntry.prototype = {
+			prev: function () {
+				return WalletEntry.entries[this.index - 1] || null;
+			},
+			next: function () {
+				return WalletEntry.entries[this.index + 1] || null;
+			},
+			amount: function () {
+				var n = 0;
+				for (var i in this.denominations) {
+					n += i * this.denominations[i];
+				}
+				return n;
+			},
+			cumulativeDenominations: function (index) {
+				var data = {};
+				for (var entry = this; entry; entry = entry.prev()) {
+					for (var i in entry.denominations) {
+						data[i] = data[i] || 0;
+						data[i] += entry.denominations[i];
+					}
+				}
+				return arguments.length ? data[index] : data;
+			},
+			cumulativeAmount: function () {
+				var n = 0;
+				for (var entry = this; entry; entry = entry.prev()) {
+					n += entry.amount();
+				}
+				return n;
+			},
+			render: function () {
+				var markup = "<tr>";
+				markup += "<td>" + moment(this.timestamp).calendar() + "</td>";
+				markup += "<td>" + this.particulars + "</td>";
+				for (var i in this.denominations) {
+					markup += "<td>";
+					if (this.denominations[i] < 0) {
+						markup += "<span class='debit'>− " + -this.denominations[i] + "</span> ";
+						markup += "<span class='balance'>= " + this.cumulativeDenominations(i) + "</span>";
+					}
+					else if (this.denominations[i] > 0) {
+						markup += "<span class='credit'>+ " + this.denominations[i] + "</span> ";
+						markup += "<span class='balance'>= " + this.cumulativeDenominations(i) + "</span>";
+					}
+					else {
+						markup += "<span class='balance'>" + this.cumulativeDenominations(i) + "</span>";
+					}
+					markup += "</td>";
+				}
+				var amount = this.amount();
+				if (amount < 0) {
+					markup += "<td><span class='debit'>− ₹" + -amount;
+					markup += "</span> <span class='balance'>= ₹" + this.cumulativeAmount() + "</span></td>";
+				}
+				else if (amount > 0) {
+					markup += "<td><span class='credit'>+ ₹" + amount;
+					markup += "</span> <span class='balance'>= ₹" + this.cumulativeAmount() + "</span></td>";
+				}
+				else return;
+				markup += "<td><a class='fui-cross-inverted btn-delete js-btn-delete' href='#'></a></td>";
+				markup += "</tr>";
+				$('.js-add-row').before(markup);
+				$('.js-btn-delete').hide().last().show().click(function () {
+					$(this).parent().parent().remove();
+					$('.js-btn-delete').hide().last().show();
+		
+					WalletEntry.entries.pop();
+				});
+				return this;	
+			}
+		};
+		
+		WalletEntry.entries.forEach(function (entry, i, entries) {
+			$.extend(entries[i], WalletEntry.prototype).render();
+		});
+		
+		$element = $('[contenteditable].default');
+		$element.each(function () {
+			$(this).data('default', $(this).text());
+		});
+		$element.focus(function () {
+			var $this = $(this);
+			if ($this.text() === $this.data('default')) {
+				$this.html('').removeClass('default');
+			}
+		});
+		$element.blur(function () {
+			var $this = $(this);
+			if ($this.text() === "") {
+				$this.html($this.data('default')).addClass('default');
+			}
+		});
+		
+		$('.js-btn-add').click(function() {
+			var particulars = $('.js-add-row .js-particulars').text();
+			var denominations = {
+				10: parseInt($('.js-add-row .js-denomination-10').text(), 10) || 0,
+				20: parseInt($('.js-add-row .js-denomination-20').text(), 10) || 0,
+				50: parseInt($('.js-add-row .js-denomination-50').text(), 10) || 0,
+				100: parseInt($('.js-add-row .js-denomination-100').text(), 10) || 0,
+				500: parseInt($('.js-add-row .js-denomination-500').text(), 10) || 0,
+				1000: parseInt($('.js-add-row .js-denomination-1000').text(), 10) || 0
+			};
+			new WalletEntry(particulars, denominations).render();
+			
+			$element.each(function () {
+				$(this).html('').blur();
+			});
+		});
+		</script>
+	<script>document.write('<script src="http://' + (location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1"></' + 'script>')</script>
+</body>
+</html>
